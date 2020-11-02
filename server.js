@@ -5,7 +5,7 @@ const bodyParser = require("body-parser");
 const { Socket } = require("net");
 const app = express();
 const server = http.createServer(app);
-const port = process.env.PORT || 5000;
+const port = process.env.PORT || 9000;
 const io = require("socket.io")(server);
 const Chat = require("./db/models/chatModel");
 require('dotenv').config();
@@ -48,14 +48,19 @@ const insertDB = (data) => {
     });
 };
 
+
 io.on("connection", (socket) => {
+
+  //[ array of atID ]
   socket.on("join", (data) => {
-    socket.join(data.activity);
+    console.log("join "+data);
+    socket.join(data);
   });
 
   socket.on("msgToServer", (data) => {
+    console.log(data);
     io.to(data.activity).emit("msgToClient", data);
-    insertDB(data);
+    // insertDB(data);
   });
 
 
