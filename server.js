@@ -8,34 +8,58 @@ const server = http.createServer(app);
 const port = process.env.PORT || 9000;
 const io = require("socket.io")(server);
 const Chat = require("./db/models/chatModel");
-require('dotenv').config();
+require("dotenv").config();
 
-
-mongoose.connect('mongodb://'+process.env.MONGO_USERNAME+':'+process.env.MONGO_PASSWORD+'@'+process.env.MONGO_HOST,{
- useUnifiedTopology: true ,
-  useNewUrlParser: true
-}).catch(err => {
-  console.log(err);
-}) 
-
+mongoose
+  .connect(
+    "mongodb://" +
+      process.env.MONGO_USERNAME +
+      ":" +
+      process.env.MONGO_PASSWORD +
+      "@" +
+      process.env.MONGO_HOST +
+      "/" +
+      process.env.MONGO_DB +
+      "?authSource=admin",
+    {
+      useUnifiedTopology: true,
+      useNewUrlParser: true,
+    }
+  )
+  .catch((err) => {
+    console.log(err);
+  });
 
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
+app.use((req, res, next) => {
+  let allowedOrigins = ["http://localhost:3000", "https://splitact.com"];
+  let origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.header("Access-Control-Allow-Origin", origin); // restrict it to the required domain
+  }
 
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+  );
+  res.header("Access-Control-Allow-Credentials", true);
+  if (req.method === "OPTIONS") {
+    res.header("Access-Control-Allow-Methods", "PUT, POST, PATCH, DELETE, GET");
+    return res.status(200).json({});
+  }
+  next();
+});
 
 const insertDB = (data) => {
 
-
-    data.nameID  = 'TestNameID';
-    data.activityID = 'TestActivityID';
-
-    const chat = Chat({
-    chatID: mongoose.Types.ObjectId,
+  const chat = Chat({
+    _id: mongoose.Types.ObjectId(),
     msg: data.msg,
-    sender: data.name,
-    senderID: data.nameID,
-    activity: data.activity,
-    activityID: data.activityID,
+    sender: data.sender,
+    senderID: data.senderID,
+    activityID: data.activity,
+    time: data.time
   });
 
   chat
@@ -43,46 +67,48 @@ const insertDB = (data) => {
     .then(() => {
       return true;
     })
-    .catch(() => {
-      return false;
+    .catch((err) => {
+      console.log(err);
     });
 };
 
-
 io.on("connection", (socket) => {
-
   //[ array of atID ]
   socket.on("join", (data) => {
-    console.log("join "+data);
+    console.log("join " + data);
     socket.join(data);
   });
 
   socket.on("msgToServer", (data) => {
+    data.time = Date();
     console.log(data);
     io.to(data.activity).emit("msgToClient", data);
-    // insertDB(data);
+    insertDB(data);
   });
-
-
 });
 
+app.get("/getchatmore", (req,res,next) => {
+  const activity = req.query.activity;
+  const begin = req.query.begin;
 
-app.post('/getChat',(req,res,next) => {
-
-    const name = req.body.name
-    const activity = req.body.activity
-
-    Chat.find({activity:activity}).limit(100).sort('-DateTime').then((chat) => {
-
-        
-        res.status(200).json({
-            status: "Success",
-            msg: chat.msg,
-        })
-    })
-
-
+  
 })
+
+app.get("/getchat", (req, res, next) => {
+
+  const activity = req.query.activity
+  console.log(activity);
+  Chat.find({ activityID: activity })
+    .select("-_id")
+    .sort("-time")
+    .limit(10)
+    .then((chat) => {
+      res.status(200).json({
+        status: "Success",
+        msg: chat.reverse(),
+      });
+    });
+});
 
 server.listen(port, () => {
   console.log("Server started at port " + port);
